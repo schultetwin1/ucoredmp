@@ -46,37 +46,38 @@ typedef struct elf_header_t {
   uint16_t sectionHeaderNamesEntryIdx;
 } elf_header_t;
 
-static uint8_t get_endianness();
+static_assert((sizeof(size_t) == 4) || (sizeof(size_t) == 8),
+              "Only supports 32-bit and 64-bit arch");
+
+static uint8_t get_host_endianess();
 static void ucoredmp_init_header(elf_header_t* header);
+static void ucoredmp_init_header_magic(elf_header_t* header);
 
 int ucoredmp_write() { 
     FILE* fp;
     elf_header_t header;
     ucoredmp_init_header(&header);
     fp = fopen("dump.dmp", "wb");
-    fwrite(&header, sizeof(uint8_t), sizeof(elf_header_t), fp);
+    fwrite(&header, sizeof(uint8_t), sizeof(header), fp);
+    fclose(fp);
+    fp = 0;
     return 0;
 }
 
 static void ucoredmp_init_header(elf_header_t* header) {
   if (!header) return;
 
-  header->magic[0] = 0x7F;
-  header->magic[1] = 'E';
-  header->magic[2] = 'L';
-  header->magic[3] = 'F';
+  ucoredmp_init_header_magic(header);
 
-  static_assert((sizeof(size_t) == 4) || (sizeof(size_t) == 8),
-                "Only supports 32-bit and 64-bit arch");
   if (sizeof(size_t) == 4) {
     header->bitFormat = EI_CLASS_32BIT;
   } else {
     header->bitFormat = EI_CLASS_64BIT;
   }
 
-  header->endianess = get_endianness();
+  header->endianess = get_host_endianess();
 
-  header->eiVersion = EI_VERSION;
+  header->eiVersion = ELF_VERSION;
   header->osabi = EI_OSABI_STANDALONE;
 
   header->type = ET_TYPE_CORE;
@@ -94,7 +95,16 @@ static void ucoredmp_init_header(elf_header_t* header) {
   header->sectionHeaderNamesEntryIdx = 0;
 }
 
-static uint8_t get_endianness() {
+static void ucoredmp_init_header_magic(elf_header_t* header) {
+  if (!header) return;
+
+  header->magic[0] = 0x7F;
+  header->magic[1] = 'E';
+  header->magic[2] = 'L';
+  header->magic[3] = 'F';
+}
+
+static uint8_t get_host_endianess() {
     static uint32_t i = 1;
     uint8_t* byte = (uint8_t*)&i;
     if (byte[0] == 1) {
